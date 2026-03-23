@@ -132,7 +132,7 @@ function getWeatherDescription(code) {
   return descriptions[code] || 'Unknown';
 }
 
-function fetchWeather(location) {
+function fetchWeather(location, includeForecast = false) {
   return new Promise((resolve, reject) => {
     const geocodeUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(location)}&count=1&language=en&format=json`;
     
@@ -148,7 +148,11 @@ function fetchWeather(location) {
           }
           
           const { latitude, longitude, name, country } = geoData.results[0];
-          const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&timezone=auto`;
+          let weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&timezone=auto`;
+          
+          if (includeForecast) {
+            weatherUrl += '&daily=temperature_2m_max,temperature_2m_min,weather_code,wind_speed_10m_max&forecast_days=2';
+          }
           
           https.get(weatherUrl, (weatherRes) => {
             let weatherData = '';
@@ -253,55 +257,129 @@ function displayTides() {
     });
 }
 
-function displayWeather() {
+function displayWeather(short = false) {
   const config = loadConfig();
   const location = config.location || 'London';
   
-  console.log('\n╔══════════════════════════════════════════════════╗');
-  console.log('║           🌤️  WEATHER TODAY 🌤️                  ║');
-  console.log('╚══════════════════════════════════════════════════╝\n');
-  
-  const now = new Date();
-  
-  console.log('📅 ' + formatDate(now));
-  console.log('📆 Day of month: ' + now.getDate());
-  console.log('📊 Week of year: ' + getWeekOfYear(now));
-  console.log('🌙 Moon phase: ' + getMoonPhase(now));
-  console.log('');
+  if (!short) {
+    console.log('\n╔══════════════════════════════════════════════════╗');
+    console.log('║           🌤️  WEATHER TODAY 🌤️                  ║');
+    console.log('╚══════════════════════════════════════════════════╝\n');
+    
+    const now = new Date();
+    
+    console.log('📅 ' + formatDate(now));
+    console.log('📆 Day of month: ' + now.getDate());
+    console.log('📊 Week of year: ' + getWeekOfYear(now));
+    console.log('🌙 Moon phase: ' + getMoonPhase(now));
+    console.log('');
+  }
   
   console.log(`📍 Fetching weather for ${location}...`);
   
-  fetchWeather(location)
+  fetchWeather(location, false)
     .then(({ weather, name, country }) => {
       const current = weather.current;
       const icon = getWeatherIcon(current.weather_code);
       const description = getWeatherDescription(current.weather_code);
       
-      console.log('');
-      console.log('┌─────────────────────────────────────────────────┐');
-      console.log(`│  Location: ${name}, ${country}`.padEnd(50) + '│');
-      console.log('├─────────────────────────────────────────────────┤');
-      console.log(`│  ${icon}  ${description}`.padEnd(50) + '│');
-      console.log(`│  🌡️  Temperature: ${current.temperature_2m}°C`.padEnd(50) + '│');
-      console.log(`│  🤚 Feels like: ${current.apparent_temperature}°C`.padEnd(50) + '│');
-      console.log(`│  💧 Humidity: ${current.relative_humidity_2m}%`.padEnd(50) + '│');
-      console.log(`│  💨 Wind speed: ${current.wind_speed_10m} km/h`.padEnd(50) + '│');
-      console.log('└─────────────────────────────────────────────────┘\n');
-      
-      console.log('💡 Tip: Edit config.json to change your default location\n');
+      if (short) {
+        console.log(`${icon} ${name}, ${country}: ${current.temperature_2m}°C (feels like ${current.apparent_temperature}°C) - ${description}`);
+      } else {
+        console.log('');
+        console.log('┌─────────────────────────────────────────────────┐');
+        console.log(`│  Location: ${name}, ${country}`.padEnd(50) + '│');
+        console.log('├─────────────────────────────────────────────────┤');
+        console.log(`│  ${icon}  ${description}`.padEnd(50) + '│');
+        console.log(`│  🌡️  Temperature: ${current.temperature_2m}°C`.padEnd(50) + '│');
+        console.log(`│  🤚 Feels like: ${current.apparent_temperature}°C`.padEnd(50) + '│');
+        console.log(`│  💧 Humidity: ${current.relative_humidity_2m}%`.padEnd(50) + '│');
+        console.log(`│  💨 Wind speed: ${current.wind_speed_10m} km/h`.padEnd(50) + '│');
+        console.log('└─────────────────────────────────────────────────┘\n');
+        
+        console.log('💡 Tip: Edit config.json to change your default location\n');
+      }
     })
     .catch(err => {
       console.error('\n❌ Error fetching weather:', err.message);
-      console.log('💡 Check your internet connection or try a different location\n');
+      if (!short) {
+        console.log('💡 Check your internet connection or try a different location\n');
+      }
+      process.exit(1);
+    });
+}
+
+function displayTomorrow(short = false) {
+  const config = loadConfig();
+  const location = config.location || 'London';
+  
+  if (!short) {
+    console.log('\n╔══════════════════════════════════════════════════╗');
+    console.log('║          🌤️  WEATHER TOMORROW 🌤️                ║');
+    console.log('╚══════════════════════════════════════════════════╝\n');
+    
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    console.log('📅 ' + formatDate(tomorrow));
+    console.log('📆 Day of month: ' + tomorrow.getDate());
+    console.log('📊 Week of year: ' + getWeekOfYear(tomorrow));
+    console.log('🌙 Moon phase: ' + getMoonPhase(tomorrow));
+    console.log('');
+  }
+  
+  console.log(`📍 Fetching weather forecast for ${location}...`);
+  
+  fetchWeather(location, true)
+    .then(({ weather, name, country }) => {
+      if (!weather.daily) {
+        console.error('\n❌ Forecast data not available');
+        process.exit(1);
+      }
+      
+      const tomorrowData = {
+        temp_max: weather.daily.temperature_2m_max[1],
+        temp_min: weather.daily.temperature_2m_min[1],
+        weather_code: weather.daily.weather_code[1],
+        wind_speed: weather.daily.wind_speed_10m_max[1]
+      };
+      
+      const icon = getWeatherIcon(tomorrowData.weather_code);
+      const description = getWeatherDescription(tomorrowData.weather_code);
+      
+      if (short) {
+        console.log(`${icon} ${name}, ${country}: ${tomorrowData.temp_min}°C - ${tomorrowData.temp_max}°C - ${description}`);
+      } else {
+        console.log('');
+        console.log('┌─────────────────────────────────────────────────┐');
+        console.log(`│  Location: ${name}, ${country}`.padEnd(50) + '│');
+        console.log('├─────────────────────────────────────────────────┤');
+        console.log(`│  ${icon}  ${description}`.padEnd(50) + '│');
+        console.log(`│  🌡️  High: ${tomorrowData.temp_max}°C`.padEnd(50) + '│');
+        console.log(`│  🌡️  Low: ${tomorrowData.temp_min}°C`.padEnd(50) + '│');
+        console.log(`│  💨 Max wind speed: ${tomorrowData.wind_speed} km/h`.padEnd(50) + '│');
+        console.log('└─────────────────────────────────────────────────┘\n');
+        
+        console.log('💡 Tip: Edit config.json to change your default location\n');
+      }
+    })
+    .catch(err => {
+      console.error('\n❌ Error fetching weather:', err.message);
+      if (!short) {
+        console.log('💡 Check your internet connection or try a different location\n');
+      }
       process.exit(1);
     });
 }
 
 const args = process.argv.slice(2);
 const command = args[0];
+const hasShortFlag = args.includes('--short') || args.includes('-s');
 
 if (command === 'tides') {
   displayTides();
+} else if (command === 'tomorrow') {
+  displayTomorrow(hasShortFlag);
 } else {
-  displayWeather();
+  displayWeather(hasShortFlag);
 }

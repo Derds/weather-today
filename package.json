@@ -1,0 +1,16 @@
+{
+  "name": "weather-today",
+  "version": "1.0.0",
+  "description": "Minimal CLI to check weather with moon phase and date info",
+  "main": "weather.js",
+  "bin": {
+    "weather": "./weather.js"
+  },
+  "scripts": {
+    "link": "npm link"
+  },
+  "keywords": ["weather", "cli"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {}
+}
